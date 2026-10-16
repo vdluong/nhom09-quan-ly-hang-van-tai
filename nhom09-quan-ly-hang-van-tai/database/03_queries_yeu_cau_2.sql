@@ -1,0 +1,4 @@
+-- TODO: Các truy vấn SQL theo yêu cầu 2.
+-- Truy vấn 1:
+-- Truy vấn 2:
+-- Truy vấn 3:

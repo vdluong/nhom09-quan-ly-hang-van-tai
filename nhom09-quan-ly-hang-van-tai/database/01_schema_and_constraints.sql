@@ -1,0 +1,5 @@
+-- TODO: Khởi tạo database, bảng và ràng buộc.
+-- Ví dụ:
+-- CREATE DATABASE IF NOT EXISTS quan_ly_hang_van_tai
+--   CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+-- USE quan_ly_hang_van_tai;

@@ -1,0 +1,2 @@
+-- TODO: Gộp schema, ràng buộc, dữ liệu mẫu và truy vấn
+-- thành một tệp nộp bài hoàn chỉnh.
