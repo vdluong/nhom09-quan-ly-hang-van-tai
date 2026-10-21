@@ -1,0 +1,21 @@
+# Java
+*.class
+out/
+target/
+build/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+nbproject/private/
+.settings/
+.project
+.classpath
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets/local configuration
+.env
