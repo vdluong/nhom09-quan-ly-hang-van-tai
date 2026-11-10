@@ -2,6 +2,7 @@ package model;
 
 import java.sql.Date;
 
+
 public class XeKhach {
     private String bienSo;
     private String mauXe;

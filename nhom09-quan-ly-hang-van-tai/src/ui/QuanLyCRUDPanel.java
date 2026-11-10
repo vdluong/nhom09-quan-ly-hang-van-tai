@@ -7,6 +7,15 @@ import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.awt.geom.RoundRectangle2D;
 import java.util.function.Consumer;
+import dao.XeKhachDAO;
+import model.XeKhach;
+import java.util.List;
+import dao.TaiXeDAO;
+import dao.TuyenXeDAO;
+import dao.ChuyenXeDAO;
+import model.TaiXe;
+import model.TuyenXe;
+import model.ChuyenXe;
 
 public class QuanLyCRUDPanel extends JPanel {
 
@@ -64,6 +73,11 @@ public class QuanLyCRUDPanel extends JPanel {
     public JComboBox<String> cbTrangThai;
     public JTable tblChuyenXe;
     public DefaultTableModel modelChuyenXe;
+
+    private JLabel lblGioiHanXe = new JLabel();
+    private JLabel lblGioiHanTaiXe = new JLabel();
+    private JLabel lblGioiHanTuyen = new JLabel();
+    private JLabel lblGioiHanChuyen = new JLabel();
 
     public QuanLyCRUDPanel(Consumer<String> onNavigate) {
         this.onNavigate = onNavigate;
@@ -174,6 +188,9 @@ public class QuanLyCRUDPanel extends JPanel {
     }
 
     private void selectSidebarItem(String cardKey, JButton selectedBtn) {
+        if ("CHUYEN_XE".equals(cardKey) && cbBienSo != null) {
+            loadComboChuyenXe();
+        }
         cardLayout.show(contentCards, cardKey);
         resetSidebarStyles();
         selectedBtn.setBackground(new Color(30, 41, 59)); // Active background
@@ -247,48 +264,36 @@ public class QuanLyCRUDPanel extends JPanel {
         return p;
     }
 
-    private JPanel createActionButtonGroup() {
+    private JPanel createActionButtonGroup(Runnable onThem, Runnable onSua,
+                                           Runnable onXoa, Runnable onLamMoi) {
         JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
         panel.setOpaque(false);
 
-        // Dòng ~208: Nút Lưu mới
-        JButton btnThem = new JButton("✓ Lưu mới");
-        btnThem.setBackground(new Color(22, 163, 74));
-        btnThem.setForeground(Color.WHITE);
-        btnThem.setOpaque(true);               // <-- THÊM DÒNG NÀY
-        btnThem.setContentAreaFilled(true);    // <-- THÊM DÒNG NÀY
-        btnThem.setBorderPainted(false);       // <-- THÊM DÒNG NÀY
+        JButton btnThem = makeButton("✓ Lưu mới", new Color(22, 163, 74));
+        JButton btnSua = makeButton("✏ Cập nhật", new Color(2, 132, 199));
+        JButton btnXoa = makeButton("🗑 Xóa", new Color(220, 38, 38));
+        JButton btnLamMoi = makeButton("🔄 Làm mới", new Color(100, 116, 139));
 
-// Dòng ~216: Nút Cập nhật
-        JButton btnSua = new JButton("✏ Cập nhật");
-        btnSua.setBackground(new Color(2, 132, 199));
-        btnSua.setForeground(Color.WHITE);
-        btnSua.setOpaque(true);                // <-- THÊM DÒNG NÀY
-        btnSua.setContentAreaFilled(true);     // <-- THÊM DÒNG NÀY
-        btnSua.setBorderPainted(false);        // <-- THÊM DÒNG NÀY
-
-// Dòng ~224: Nút Xóa
-        JButton btnXoa = new JButton("🗑 Xóa");
-        btnXoa.setBackground(new Color(220, 38, 38));
-        btnXoa.setForeground(Color.WHITE);
-        btnXoa.setOpaque(true);                // <-- THÊM DÒNG NÀY
-        btnXoa.setContentAreaFilled(true);     // <-- THÊM DÒNG NÀY
-        btnXoa.setBorderPainted(false);        // <-- THÊM DÒNG NÀY
-
-// Dòng ~232: Nút Làm mới
-        JButton btnLamMoi = new JButton("🔄 Làm mới");
-        btnLamMoi.setBackground(new Color(100, 116, 139));
-        btnLamMoi.setForeground(Color.WHITE);
-        btnLamMoi.setOpaque(true);             // <-- THÊM DÒNG NÀY
-        btnLamMoi.setContentAreaFilled(true);  // <-- THÊM DÒNG NÀY
-        btnLamMoi.setBorderPainted(false);     // <-- THÊM DÒNG NÀY
+        btnThem.addActionListener(e -> onThem.run());
+        btnSua.addActionListener(e -> onSua.run());
+        btnXoa.addActionListener(e -> onXoa.run());
+        btnLamMoi.addActionListener(e -> onLamMoi.run());
 
         panel.add(btnThem);
         panel.add(btnSua);
         panel.add(btnXoa);
         panel.add(btnLamMoi);
-
         return panel;
+    }
+
+    private JButton makeButton(String text, Color bg) {
+        JButton b = new JButton(text);
+        b.setBackground(bg);
+        b.setForeground(Color.WHITE);
+        b.setOpaque(true);
+        b.setContentAreaFilled(true);
+        b.setBorderPainted(false);
+        return b;
     }
 
     private void styleTable(JTable table) {
@@ -352,8 +357,9 @@ public class QuanLyCRUDPanel extends JPanel {
 
         spnSoGhe.addChangeListener(e -> {
             int soGhe = (int) spnSoGhe.getValue();
-            lblSoChoToiDa.setText((soGhe * 2) + " KHÁCH");
+            lblSoChoToiDa.setText(Math.max(0, soGhe - 2) + " KHÁCH");
         });
+        lblSoChoToiDa.setText(Math.max(0, (int) spnSoGhe.getValue() - 2) + " KHÁCH");
 
         fieldsGrid.add(createFieldGroup("Biển số xe:", txtBienSo));
         fieldsGrid.add(createFieldGroup("Màu sơn xe:", txtMauXe));
@@ -371,7 +377,9 @@ public class QuanLyCRUDPanel extends JPanel {
         topContent.setOpaque(false);
         topContent.add(lblTitle, BorderLayout.NORTH);
         topContent.add(fieldsGrid, BorderLayout.CENTER);
-        topContent.add(createActionButtonGroup(), BorderLayout.SOUTH);
+        topContent.add(createActionButtonGroup(
+                        this::themXeKhach, this::suaXeKhach, this::xoaXeKhach, this::lamMoiXeKhach),
+                BorderLayout.SOUTH);
 
         formCard.add(topContent, BorderLayout.CENTER);
 
@@ -393,6 +401,7 @@ public class QuanLyCRUDPanel extends JPanel {
         btnExcel.setOpaque(true);              // <-- THÊM DÒNG NÀY
         btnExcel.setContentAreaFilled(true);   // <-- THÊM DÒNG NÀY
         btnExcel.setBorderPainted(false);      // <-- THÊM DÒNG NÀY
+        rightSearch.add(lblGioiHanXe);
         rightSearch.add(txtSearch);
         rightSearch.add(btnFilter);
         rightSearch.add(btnExcel);
@@ -404,9 +413,23 @@ public class QuanLyCRUDPanel extends JPanel {
         modelXeKhach = new DefaultTableModel(columns, 0);
         tblXeKhach = new JTable(modelXeKhach);
         styleTable(tblXeKhach);
+        btnExcel.addActionListener(e -> utils.ExportReportUtil.exportJTableToCSV(tblXeKhach, this));
+        tblXeKhach.getSelectionModel().addListSelectionListener(e -> {
+            if (e.getValueIsAdjusting()) return;
+            int r = tblXeKhach.getSelectedRow();
+            if (r < 0) return;
+            txtBienSo.setText(String.valueOf(modelXeKhach.getValueAt(r, 0)));
+            txtMauXe.setText(String.valueOf(modelXeKhach.getValueAt(r, 1)));
+            txtModel.setText(String.valueOf(modelXeKhach.getValueAt(r, 2)));
+            cbHangSX.setSelectedItem(modelXeKhach.getValueAt(r, 3));
+            spnDoiXe.setValue(modelXeKhach.getValueAt(r, 4));
+            spnNamSD.setValue(modelXeKhach.getValueAt(r, 5));
+            spnSoGhe.setValue(modelXeKhach.getValueAt(r, 6));
+            txtNgayBaoDuongCuoi.setText(String.valueOf(modelXeKhach.getValueAt(r, 7)));
+            txtBienSo.setEditable(false);
+        });
 
-        modelXeKhach.addRow(new Object[]{"29B-123.45", "Trắng", "Universe", "Hyundai", 2022, 2, 45, "2026-01-15"});
-        modelXeKhach.addRow(new Object[]{"30F-987.65", "Xanh", "Mobihome", "Thaco", 2023, 1, 36, "2026-03-10"});
+
 
         JPanel tableContent = new JPanel(new BorderLayout(0, 10));
         tableContent.setOpaque(false);
@@ -451,7 +474,9 @@ public class QuanLyCRUDPanel extends JPanel {
         topContent.setOpaque(false);
         topContent.add(new JLabel("Thông tin Tài xế"), BorderLayout.NORTH);
         topContent.add(fieldsGrid, BorderLayout.CENTER);
-        topContent.add(createActionButtonGroup(), BorderLayout.SOUTH);
+        topContent.add(createActionButtonGroup(
+                        this::themTaiXe, this::suaTaiXe, this::xoaTaiXe, this::lamMoiTaiXe),
+                BorderLayout.SOUTH);
 
         formCard.add(topContent, BorderLayout.CENTER);
 
@@ -460,8 +485,21 @@ public class QuanLyCRUDPanel extends JPanel {
         modelTaiXe = new DefaultTableModel(columns, 0);
         tblTaiXe = new JTable(modelTaiXe);
         styleTable(tblTaiXe);
+        tblTaiXe.getSelectionModel().addListSelectionListener(e -> {
+            if (e.getValueIsAdjusting()) return;
+            int r = tblTaiXe.getSelectedRow();
+            if (r < 0) return;
+            txtMaTaiXe.setText(String.valueOf(modelTaiXe.getValueAt(r, 0)));
+            txtSoCMT.setText(String.valueOf(modelTaiXe.getValueAt(r, 1)));
+            txtHoTen.setText(String.valueOf(modelTaiXe.getValueAt(r, 2)));
+            txtMaBangLai.setText(String.valueOf(modelTaiXe.getValueAt(r, 3)));
+            cbLoaiBangLai.setSelectedItem(modelTaiXe.getValueAt(r, 4));
+            txtNgaySinh.setText(String.valueOf(modelTaiXe.getValueAt(r, 5)));
+            txtDiaChi.setText(String.valueOf(modelTaiXe.getValueAt(r, 6)));
+            spnThamNien.setValue(modelTaiXe.getValueAt(r, 7));
+            txtMaTaiXe.setEditable(false);
+        });
 
-        modelTaiXe.addRow(new Object[]{"TX001", "001090123456", "Nguyễn Văn A", "BL998877", "E", "1988-05-12", "Hà Nội", 8});
 
         JPanel tableContent = new JPanel(new BorderLayout(0, 10));
         tableContent.setOpaque(false);
@@ -472,7 +510,7 @@ public class QuanLyCRUDPanel extends JPanel {
 
         view.add(formCard, BorderLayout.NORTH);
         view.add(tableCard, BorderLayout.CENTER);
-
+        loadTaiXe();
         return view;
     }
 
@@ -500,8 +538,9 @@ public class QuanLyCRUDPanel extends JPanel {
         topContent.setOpaque(false);
         topContent.add(new JLabel("Thông tin Tuyến xe"), BorderLayout.NORTH);
         topContent.add(fieldsGrid, BorderLayout.CENTER);
-        topContent.add(createActionButtonGroup(), BorderLayout.SOUTH);
-
+        topContent.add(createActionButtonGroup(
+                        this::themTuyenXe, this::suaTuyenXe, this::xoaTuyenXe, this::lamMoiTuyenXe),
+                BorderLayout.SOUTH);
         formCard.add(topContent, BorderLayout.CENTER);
 
         JPanel tableCard = createRoundedCardPanel();
@@ -509,8 +548,17 @@ public class QuanLyCRUDPanel extends JPanel {
         modelTuyenXe = new DefaultTableModel(columns, 0);
         tblTuyenXe = new JTable(modelTuyenXe);
         styleTable(tblTuyenXe);
-
-        modelTuyenXe.addRow(new Object[]{"T01", "Bến xe Giáp Bát", "Bến xe Niệm Nghĩa", 105.5, "1 Cấp 1 (Dễ)"});
+        tblTuyenXe.getSelectionModel().addListSelectionListener(e -> {
+            if (e.getValueIsAdjusting()) return;
+            int r = tblTuyenXe.getSelectedRow();
+            if (r < 0) return;
+            txtMaTuyen.setText(String.valueOf(modelTuyenXe.getValueAt(r, 0)));
+            txtDiemDau.setText(String.valueOf(modelTuyenXe.getValueAt(r, 1)));
+            txtDiemCuoi.setText(String.valueOf(modelTuyenXe.getValueAt(r, 2)));
+            txtDoDaiKm.setText(String.valueOf(modelTuyenXe.getValueAt(r, 3)));
+            cbDoPhucTap.setSelectedItem(modelTuyenXe.getValueAt(r, 4));
+            txtMaTuyen.setEditable(false);
+        });
 
         JPanel tableContent = new JPanel(new BorderLayout(0, 10));
         tableContent.setOpaque(false);
@@ -521,7 +569,7 @@ public class QuanLyCRUDPanel extends JPanel {
 
         view.add(formCard, BorderLayout.NORTH);
         view.add(tableCard, BorderLayout.CENTER);
-
+        loadTuyenXe();
         return view;
     }
 
@@ -557,8 +605,9 @@ public class QuanLyCRUDPanel extends JPanel {
         topContent.setOpaque(false);
         topContent.add(new JLabel("Thông tin Chuyến xe"), BorderLayout.NORTH);
         topContent.add(fieldsGrid, BorderLayout.CENTER);
-        topContent.add(createActionButtonGroup(), BorderLayout.SOUTH);
-
+        topContent.add(createActionButtonGroup(
+                        this::themChuyenXe, this::suaChuyenXe, this::xoaChuyenXe, this::lamMoiChuyenXe),
+                BorderLayout.SOUTH);
         formCard.add(topContent, BorderLayout.CENTER);
 
         JPanel tableCard = createRoundedCardPanel();
@@ -567,7 +616,21 @@ public class QuanLyCRUDPanel extends JPanel {
         tblChuyenXe = new JTable(modelChuyenXe);
         styleTable(tblChuyenXe);
 
-        modelChuyenXe.addRow(new Object[]{"CX20261001", "29B-123.45", "T01", "TX001", "TX002", "2026-10-25 08:00:00", 35, "150000", "Đã lên lịch"});
+        tblChuyenXe.getSelectionModel().addListSelectionListener(e -> {
+            if (e.getValueIsAdjusting()) return;
+            int r = tblChuyenXe.getSelectedRow();
+            if (r < 0) return;
+            txtMaChuyen.setText(String.valueOf(modelChuyenXe.getValueAt(r, 0)));
+            cbBienSo.setSelectedItem(modelChuyenXe.getValueAt(r, 1));
+            cbMaTuyen.setSelectedItem(modelChuyenXe.getValueAt(r, 2));
+            chonTheoMa(cbMaLaiXe, modelChuyenXe.getValueAt(r, 3));
+            chonTheoMa(cbMaPhuXe, modelChuyenXe.getValueAt(r, 4));
+            txtNgayKhoiHanh.setText(String.valueOf(modelChuyenXe.getValueAt(r, 5)));
+            spnSoKhach.setValue(modelChuyenXe.getValueAt(r, 6));
+            txtGiaVe.setText(String.valueOf(modelChuyenXe.getValueAt(r, 7)));
+            cbTrangThai.setSelectedItem(modelChuyenXe.getValueAt(r, 8));
+            txtMaChuyen.setEditable(false);
+        });
 
         JPanel tableContent = new JPanel(new BorderLayout(0, 10));
         tableContent.setOpaque(false);
@@ -578,8 +641,415 @@ public class QuanLyCRUDPanel extends JPanel {
 
         view.add(formCard, BorderLayout.NORTH);
         view.add(tableCard, BorderLayout.CENTER);
-
+        loadComboChuyenXe();
+        loadChuyenXe();
         return view;
+    }
+
+    private final XeKhachDAO xeKhachDAO = new XeKhachDAO();
+
+    private void capNhatGioiHan() {
+        lblGioiHanXe.setText("Số bản ghi: " + config.DBConnection.layThongTinGioiHan("XE_KHACH"));
+        lblGioiHanTaiXe.setText("Số bản ghi: " + config.DBConnection.layThongTinGioiHan("TAI_XE"));
+        lblGioiHanTuyen.setText("Số bản ghi: " + config.DBConnection.layThongTinGioiHan("TUYEN_XE"));
+        lblGioiHanChuyen.setText("Số bản ghi: " + config.DBConnection.layThongTinGioiHan("CHUYEN_XE"));
+    }
+
+    private void loadXeKhach() {
+        modelXeKhach.setRowCount(0);
+        List<XeKhach> list = xeKhachDAO.getAll();
+        for (XeKhach xk : list) {
+            modelXeKhach.addRow(new Object[]{
+                    xk.getBienSo(), xk.getMauXe(), xk.getModel(), xk.getHangSanXuat(),
+                    xk.getDoiXe(), xk.getSoNamSuDung(), xk.getSoGhe(),
+                    xk.getNgayBaoDuongCuoi()});
+        }
+    }
+
+    private void lamMoiXeKhach() {
+        txtBienSo.setText("");
+        txtMauXe.setText("");
+        txtModel.setText("");
+        cbHangSX.setSelectedIndex(0);
+        spnDoiXe.setValue(2022);
+        spnNamSD.setValue(0);
+        spnSoGhe.setValue(29);
+        txtNgayBaoDuongCuoi.setText("2026-01-01");
+        txtBienSo.setEditable(true);
+        tblXeKhach.clearSelection();
+    }
+
+    /** Đọc form thành đối tượng XeKhach; trả về null nếu dữ liệu sai. */
+    private XeKhach docFormXeKhach() {
+        String bienSo = txtBienSo.getText().trim();
+        if (bienSo.isEmpty() || bienSo.startsWith("VD:")) {
+            JOptionPane.showMessageDialog(this, "Vui lòng nhập biển số xe!");
+            return null;
+        }
+        java.sql.Date ngayBD;
+        try {
+            ngayBD = java.sql.Date.valueOf(txtNgayBaoDuongCuoi.getText().trim());
+        } catch (IllegalArgumentException ex) {
+            JOptionPane.showMessageDialog(this, "Ngày bảo dưỡng phải có dạng yyyy-MM-dd, ví dụ 2026-01-15");
+            return null;
+        }
+        String mau = txtMauXe.getText().trim();
+        String model = txtModel.getText().trim();
+        if (mau.startsWith("VD:")) mau = "";
+        if (model.startsWith("VD:")) model = "";
+
+        return new XeKhach(bienSo, mau, (String) cbHangSX.getSelectedItem(),
+                (int) spnDoiXe.getValue(), model, (int) spnSoGhe.getValue(),
+                (int) spnNamSD.getValue(), ngayBD);
+    }
+
+    private void themXeKhach() {
+        XeKhach xk = docFormXeKhach();
+        if (xk == null) return;
+        if (xeKhachDAO.insert(xk)) {
+            JOptionPane.showMessageDialog(this, "Đã thêm xe khách!");
+            loadXeKhach();
+            lamMoiXeKhach();
+        }
+    }
+
+    private void suaXeKhach() {
+        if (tblXeKhach.getSelectedRow() < 0) {
+            JOptionPane.showMessageDialog(this, "Hãy chọn một dòng trong bảng trước!");
+            return;
+        }
+        XeKhach xk = docFormXeKhach();
+        if (xk == null) return;
+        if (xeKhachDAO.update(xk)) {
+            JOptionPane.showMessageDialog(this, "Đã cập nhật!");
+            loadXeKhach();
+            lamMoiXeKhach();
+        }
+    }
+
+    private void xoaXeKhach() {
+        int r = tblXeKhach.getSelectedRow();
+        if (r < 0) {
+            JOptionPane.showMessageDialog(this, "Hãy chọn một dòng trong bảng trước!");
+            return;
+        }
+        String bienSo = String.valueOf(modelXeKhach.getValueAt(r, 0));
+        if (JOptionPane.showConfirmDialog(this, "Xóa xe " + bienSo + "?", "Xác nhận",
+                JOptionPane.YES_NO_OPTION) == JOptionPane.YES_OPTION) {
+            if (xeKhachDAO.delete(bienSo)) {
+                loadXeKhach();
+                lamMoiXeKhach();
+            }
+        }
+    }
+
+    // ===================== TÀI XẾ =====================
+    private final TaiXeDAO taiXeDAO = new TaiXeDAO();
+
+    private void loadTaiXe() {
+        modelTaiXe.setRowCount(0);
+        for (TaiXe t : taiXeDAO.getAll()) {
+            modelTaiXe.addRow(new Object[]{
+                    t.getMaTaiXe(), t.getSoCmt(), t.getHoTen(), t.getMaBangLai(),
+                    t.getLoaiBangLai(), t.getNgaySinh(), t.getDiaChi(), t.getThamNien()});
+        }
+    }
+
+    private void lamMoiTaiXe() {
+        txtMaTaiXe.setText("");
+        txtSoCMT.setText("");
+        txtHoTen.setText("");
+        txtMaBangLai.setText("");
+        cbLoaiBangLai.setSelectedIndex(0);
+        txtNgaySinh.setText("1990-01-01");
+        txtDiaChi.setText("");
+        spnThamNien.setValue(1);
+        txtMaTaiXe.setEditable(true);
+        tblTaiXe.clearSelection();
+    }
+
+    private TaiXe docFormTaiXe() {
+        String ma = txtMaTaiXe.getText().trim();
+        String ten = txtHoTen.getText().trim();
+        if (ma.isEmpty() || ten.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Vui lòng nhập Mã tài xế và Họ tên!");
+            return null;
+        }
+        java.sql.Date ngaySinh;
+        try {
+            ngaySinh = java.sql.Date.valueOf(txtNgaySinh.getText().trim());
+        } catch (IllegalArgumentException ex) {
+            JOptionPane.showMessageDialog(this, "Ngày sinh phải có dạng yyyy-MM-dd, ví dụ 1990-05-20");
+            return null;
+        }
+        return new TaiXe(ma, txtSoCMT.getText().trim(), ten, txtMaBangLai.getText().trim(),
+                (String) cbLoaiBangLai.getSelectedItem(), txtDiaChi.getText().trim(),
+                ngaySinh, (int) spnThamNien.getValue());
+    }
+
+    private void themTaiXe() {
+        TaiXe t = docFormTaiXe();
+        if (t == null) return;
+        if (taiXeDAO.insert(t)) {
+            JOptionPane.showMessageDialog(this, "Đã thêm tài xế!");
+            loadTaiXe();
+            lamMoiTaiXe();
+        }
+    }
+
+    private void suaTaiXe() {
+        if (tblTaiXe.getSelectedRow() < 0) {
+            JOptionPane.showMessageDialog(this, "Hãy chọn một dòng trong bảng trước!");
+            return;
+        }
+        TaiXe t = docFormTaiXe();
+        if (t == null) return;
+        if (taiXeDAO.update(t)) {
+            JOptionPane.showMessageDialog(this, "Đã cập nhật!");
+            loadTaiXe();
+            lamMoiTaiXe();
+        }
+    }
+
+    private void xoaTaiXe() {
+        int r = tblTaiXe.getSelectedRow();
+        if (r < 0) {
+            JOptionPane.showMessageDialog(this, "Hãy chọn một dòng trong bảng trước!");
+            return;
+        }
+        String ma = String.valueOf(modelTaiXe.getValueAt(r, 0));
+        if (JOptionPane.showConfirmDialog(this, "Xóa tài xế " + ma + "?", "Xác nhận",
+                JOptionPane.YES_NO_OPTION) == JOptionPane.YES_OPTION) {
+            if (taiXeDAO.delete(ma)) {
+                loadTaiXe();
+                lamMoiTaiXe();
+            }
+        }
+    }
+
+    // ===================== TUYẾN XE =====================
+    private final TuyenXeDAO tuyenXeDAO = new TuyenXeDAO();
+
+    private String nhanDoPhucTap(int cap) {
+        return cbDoPhucTap.getItemAt(Math.max(0, Math.min(2, cap - 1)));
+    }
+
+    private void loadTuyenXe() {
+        modelTuyenXe.setRowCount(0);
+        for (TuyenXe t : tuyenXeDAO.getAll()) {
+            modelTuyenXe.addRow(new Object[]{
+                    t.getMaTuyen(), t.getDiemDau(), t.getDiemCuoi(),
+                    t.getDoDaiKm(), nhanDoPhucTap(t.getDoPhucTap())});
+        }
+    }
+
+    private void lamMoiTuyenXe() {
+        txtMaTuyen.setText("");
+        txtDiemDau.setText("");
+        txtDiemCuoi.setText("");
+        txtDoDaiKm.setText("");
+        cbDoPhucTap.setSelectedIndex(0);
+        txtMaTuyen.setEditable(true);
+        tblTuyenXe.clearSelection();
+    }
+
+    private TuyenXe docFormTuyenXe() {
+        String ma = txtMaTuyen.getText().trim();
+        if (ma.isEmpty() || txtDiemDau.getText().trim().isEmpty()
+                || txtDiemCuoi.getText().trim().isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Vui lòng nhập Mã tuyến, Điểm đầu và Điểm cuối!");
+            return null;
+        }
+        java.math.BigDecimal doDai;
+        try {
+            doDai = new java.math.BigDecimal(txtDoDaiKm.getText().trim());
+        } catch (NumberFormatException ex) {
+            JOptionPane.showMessageDialog(this, "Độ dài (km) phải là số, ví dụ 105.5");
+            return null;
+        }
+        return new TuyenXe(ma, txtDiemDau.getText().trim(), txtDiemCuoi.getText().trim(),
+                doDai, cbDoPhucTap.getSelectedIndex() + 1);
+    }
+
+    private void themTuyenXe() {
+        TuyenXe t = docFormTuyenXe();
+        if (t == null) return;
+        if (tuyenXeDAO.insert(t)) {
+            JOptionPane.showMessageDialog(this, "Đã thêm tuyến xe!");
+            loadTuyenXe();
+            lamMoiTuyenXe();
+        }
+    }
+
+    private void suaTuyenXe() {
+        if (tblTuyenXe.getSelectedRow() < 0) {
+            JOptionPane.showMessageDialog(this, "Hãy chọn một dòng trong bảng trước!");
+            return;
+        }
+        TuyenXe t = docFormTuyenXe();
+        if (t == null) return;
+        if (tuyenXeDAO.update(t)) {
+            JOptionPane.showMessageDialog(this, "Đã cập nhật!");
+            loadTuyenXe();
+            lamMoiTuyenXe();
+        }
+    }
+
+    private void xoaTuyenXe() {
+        int r = tblTuyenXe.getSelectedRow();
+        if (r < 0) {
+            JOptionPane.showMessageDialog(this, "Hãy chọn một dòng trong bảng trước!");
+            return;
+        }
+        String ma = String.valueOf(modelTuyenXe.getValueAt(r, 0));
+        if (JOptionPane.showConfirmDialog(this, "Xóa tuyến " + ma + "?", "Xác nhận",
+                JOptionPane.YES_NO_OPTION) == JOptionPane.YES_OPTION) {
+            if (tuyenXeDAO.delete(ma)) {
+                loadTuyenXe();
+                lamMoiTuyenXe();
+            }
+        }
+    }
+
+    // ===================== CHUYẾN XE =====================
+    private final ChuyenXeDAO chuyenXeDAO = new ChuyenXeDAO();
+
+    /** Nạp lại 4 ô chọn từ database (biển số, tuyến, lái chính, phụ xe). */
+    private void loadComboChuyenXe() {
+        cbBienSo.removeAllItems();
+        for (model.XeKhach x : xeKhachDAO.getAll()) cbBienSo.addItem(x.getBienSo());
+
+        cbMaTuyen.removeAllItems();
+        for (TuyenXe t : tuyenXeDAO.getAll()) cbMaTuyen.addItem(t.getMaTuyen());
+
+        cbMaLaiXe.removeAllItems();
+        cbMaPhuXe.removeAllItems();
+        for (TaiXe t : taiXeDAO.getAll()) {
+            cbMaLaiXe.addItem(t.toString());   // dạng "TX001 - Nguyễn Văn A"
+            cbMaPhuXe.addItem(t.toString());
+        }
+    }
+
+    /** Lấy mã từ chuỗi "TX001 - Nguyễn Văn A". */
+    private String maTuLabel(Object item) {
+        return item == null ? null : item.toString().split(" - ")[0].trim();
+    }
+
+    private void chonTheoMa(JComboBox<String> cb, Object ma) {
+        if (ma == null) return;
+        String m = ma.toString();
+        for (int i = 0; i < cb.getItemCount(); i++) {
+            String it = cb.getItemAt(i);
+            if (it.equals(m) || it.startsWith(m + " - ")) {
+                cb.setSelectedIndex(i);
+                return;
+            }
+        }
+    }
+
+    private String dinhDangNgayGio(java.sql.Timestamp ts) {
+        if (ts == null) return "";
+        String s = ts.toString();
+        return s.length() > 19 ? s.substring(0, 19) : s;
+    }
+
+    private void loadChuyenXe() {
+        modelChuyenXe.setRowCount(0);
+        for (ChuyenXe c : chuyenXeDAO.getAll()) {
+            modelChuyenXe.addRow(new Object[]{
+                    c.getMaChuyen(), c.getBienSo(), c.getMaTuyen(), c.getMaLaiXe(), c.getMaPhuXe(),
+                    dinhDangNgayGio(c.getNgayKhoiHanh()), c.getSoKhach(),
+                    c.getGiaVe() == null ? "" : c.getGiaVe().toPlainString(),
+                    c.getTrangThai()});
+        }
+    }
+
+    private void lamMoiChuyenXe() {
+        txtMaChuyen.setText("");
+        if (cbBienSo.getItemCount() > 0) cbBienSo.setSelectedIndex(0);
+        if (cbMaTuyen.getItemCount() > 0) cbMaTuyen.setSelectedIndex(0);
+        if (cbMaLaiXe.getItemCount() > 0) cbMaLaiXe.setSelectedIndex(0);
+        if (cbMaPhuXe.getItemCount() > 0) cbMaPhuXe.setSelectedIndex(0);
+        txtNgayKhoiHanh.setText("2026-10-25 08:00:00");
+        spnSoKhach.setValue(20);
+        txtGiaVe.setText("150000");
+        cbTrangThai.setSelectedIndex(0);
+        txtMaChuyen.setEditable(true);
+        tblChuyenXe.clearSelection();
+    }
+
+    private ChuyenXe docFormChuyenXe() {
+        String ma = txtMaChuyen.getText().trim();
+        if (ma.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Vui lòng nhập Mã chuyến!");
+            return null;
+        }
+        if (cbBienSo.getSelectedItem() == null || cbMaTuyen.getSelectedItem() == null
+                || cbMaLaiXe.getSelectedItem() == null || cbMaPhuXe.getSelectedItem() == null) {
+            JOptionPane.showMessageDialog(this,
+                    "Cần có đủ Xe, Tuyến, Lái chính và Phụ xe. Hãy thêm dữ liệu ở các tab kia trước!");
+            return null;
+        }
+        java.sql.Timestamp ngay;
+        try {
+            ngay = java.sql.Timestamp.valueOf(txtNgayKhoiHanh.getText().trim());
+        } catch (IllegalArgumentException ex) {
+            JOptionPane.showMessageDialog(this,
+                    "Khởi hành phải có dạng yyyy-MM-dd HH:mm:ss, ví dụ 2026-10-25 08:00:00");
+            return null;
+        }
+        java.math.BigDecimal giaVe;
+        try {
+            giaVe = new java.math.BigDecimal(txtGiaVe.getText().trim());
+        } catch (NumberFormatException ex) {
+            JOptionPane.showMessageDialog(this, "Giá vé phải là số, ví dụ 150000");
+            return null;
+        }
+        return new ChuyenXe(ma, (String) cbBienSo.getSelectedItem(),
+                (String) cbMaTuyen.getSelectedItem(),
+                maTuLabel(cbMaLaiXe.getSelectedItem()), maTuLabel(cbMaPhuXe.getSelectedItem()),
+                ngay, (int) spnSoKhach.getValue(), giaVe,
+                (String) cbTrangThai.getSelectedItem());
+    }
+
+    private void themChuyenXe() {
+        ChuyenXe c = docFormChuyenXe();
+        if (c == null) return;
+        if (chuyenXeDAO.insert(c)) {
+            JOptionPane.showMessageDialog(this, "Đã thêm chuyến xe!");
+            loadChuyenXe();
+            lamMoiChuyenXe();
+        }
+    }
+
+    private void suaChuyenXe() {
+        if (tblChuyenXe.getSelectedRow() < 0) {
+            JOptionPane.showMessageDialog(this, "Hãy chọn một dòng trong bảng trước!");
+            return;
+        }
+        ChuyenXe c = docFormChuyenXe();
+        if (c == null) return;
+        if (chuyenXeDAO.update(c)) {
+            JOptionPane.showMessageDialog(this, "Đã cập nhật!");
+            loadChuyenXe();
+            lamMoiChuyenXe();
+        }
+    }
+
+    private void xoaChuyenXe() {
+        int r = tblChuyenXe.getSelectedRow();
+        if (r < 0) {
+            JOptionPane.showMessageDialog(this, "Hãy chọn một dòng trong bảng trước!");
+            return;
+        }
+        String ma = String.valueOf(modelChuyenXe.getValueAt(r, 0));
+        if (JOptionPane.showConfirmDialog(this, "Xóa chuyến " + ma + "?", "Xác nhận",
+                JOptionPane.YES_NO_OPTION) == JOptionPane.YES_OPTION) {
+            if (chuyenXeDAO.delete(ma)) {
+                loadChuyenXe();
+                lamMoiChuyenXe();
+            }
+        }
     }
 
     private JPanel createFieldGroup(String labelText, JComponent component) {
