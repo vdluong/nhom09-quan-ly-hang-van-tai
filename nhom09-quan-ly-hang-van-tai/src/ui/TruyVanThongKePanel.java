@@ -555,26 +555,44 @@ public class TruyVanThongKePanel extends JPanel {
         };
     }
 
+
     private void styleTable(JTable table) {
         table.setRowHeight(34);
         table.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         table.setGridColor(new Color(226, 232, 240));
         table.setSelectionBackground(new Color(224, 242, 254));
-        table.setSelectionForeground( new Color(15, 23, 42));
+        table.setSelectionForeground(new Color(15, 23, 42));
         table.setShowVerticalLines(true);
 
         JTableHeader header = table.getTableHeader();
         header.setPreferredSize(new Dimension(0, 38));
         header.setFont(new Font("Segoe UI", Font.BOLD, 13));
-        header.setBackground(SIDEBAR_BG);
-        header.setForeground(Color.WHITE);
-        header.setOpaque(true);
 
-        DefaultTableCellRenderer centerRenderer = new DefaultTableCellRenderer();
+        DefaultTableCellRenderer headerRenderer =
+                new DefaultTableCellRenderer();
+
+        headerRenderer.setBackground(SIDEBAR_BG);
+        headerRenderer.setForeground(Color.WHITE);
+        headerRenderer.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        headerRenderer.setHorizontalAlignment(SwingConstants.CENTER);
+        headerRenderer.setOpaque(true);
+
+        for (int i = 0; i < table.getColumnCount(); i++) {
+            table.getColumnModel()
+                    .getColumn(i)
+                    .setHeaderRenderer(headerRenderer);
+        }
+
+        DefaultTableCellRenderer centerRenderer =
+                new DefaultTableCellRenderer();
+
         centerRenderer.setHorizontalAlignment(SwingConstants.CENTER);
+
         if (table.getColumnCount() > 0) {
             table.getColumnModel().getColumn(0).setMaxWidth(60);
-            table.getColumnModel().getColumn(0).setCellRenderer(centerRenderer);
+            table.getColumnModel().getColumn(0)
+                    .setCellRenderer(centerRenderer);
         }
     }
+
 }
