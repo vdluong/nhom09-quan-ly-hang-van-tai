@@ -205,4 +205,103 @@ BEGIN
     END IF;
 END$$
 
+
+-- RB04: Chan them chuyen neu xe qua han bao duong.
+CREATE TRIGGER trg_chuyen_xe_rb04_bi
+    BEFORE INSERT ON CHUYEN_XE
+    FOR EACH ROW
+BEGIN
+    DECLARE v_ngay_bd DATE;
+    DECLARE v_tong_km DECIMAL(18,2) DEFAULT 0;
+    DECLARE v_ngay_bd_tiep DATE;
+
+    SELECT ngay_bao_duong_cuoi
+    INTO v_ngay_bd
+    FROM XE_KHACH
+    WHERE bien_so = NEW.bien_so;
+
+    SELECT COALESCE(
+                   SUM(
+                           tx.do_dai_km *
+                           CASE tx.do_phuc_tap
+                               WHEN 2 THEN 1.2
+                               WHEN 3 THEN 1.5
+                               ELSE 1.0
+                               END
+                   ), 0)
+    INTO v_tong_km
+    FROM CHUYEN_XE cx
+             JOIN TUYEN_XE tx ON tx.ma_tuyen = cx.ma_tuyen
+    WHERE cx.bien_so = NEW.bien_so
+      AND DATE(cx.ngay_khoi_hanh) > v_ngay_bd
+      AND cx.ngay_khoi_hanh <= NOW()
+      AND cx.trang_thai = 'Hoàn thành';
+
+    SET v_ngay_bd_tiep = DATE_ADD(
+        v_ngay_bd,
+        INTERVAL GREATEST(
+            0,
+            360 - FLOOR(v_tong_km / 100)
+        ) DAY
+    );
+
+    IF DATE(NEW.ngay_khoi_hanh) > v_ngay_bd_tiep THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT =
+                'RB04: Xe qua han bao duong, khong the them chuyen!';
+END IF;
+END$$
+
+
+-- RB04: Chan cap nhat chuyen neu xe qua han bao duong.
+CREATE TRIGGER trg_chuyen_xe_rb04_bu
+    BEFORE UPDATE ON CHUYEN_XE
+    FOR EACH ROW
+BEGIN
+    DECLARE v_ngay_bd DATE;
+    DECLARE v_tong_km DECIMAL(18,2) DEFAULT 0;
+    DECLARE v_ngay_bd_tiep DATE;
+
+    IF NEW.bien_so <> OLD.bien_so
+       OR NEW.ngay_khoi_hanh > OLD.ngay_khoi_hanh THEN
+
+    SELECT ngay_bao_duong_cuoi
+    INTO v_ngay_bd
+    FROM XE_KHACH
+    WHERE bien_so = NEW.bien_so;
+
+    SELECT COALESCE(
+                   SUM(
+                           tx.do_dai_km *
+                           CASE tx.do_phuc_tap
+                               WHEN 2 THEN 1.2
+                               WHEN 3 THEN 1.5
+                               ELSE 1.0
+                               END
+                   ), 0)
+    INTO v_tong_km
+    FROM CHUYEN_XE cx
+             JOIN TUYEN_XE tx ON tx.ma_tuyen = cx.ma_tuyen
+    WHERE cx.bien_so = NEW.bien_so
+      AND cx.ma_chuyen <> OLD.ma_chuyen
+      AND DATE(cx.ngay_khoi_hanh) > v_ngay_bd
+      AND cx.ngay_khoi_hanh <= NOW()
+      AND cx.trang_thai = 'Hoàn thành';
+
+    SET v_ngay_bd_tiep = DATE_ADD(
+            v_ngay_bd,
+            INTERVAL GREATEST(
+                0,
+                360 - FLOOR(v_tong_km / 100)
+            ) DAY
+        );
+
+        IF DATE(NEW.ngay_khoi_hanh) > v_ngay_bd_tiep THEN
+            SIGNAL SQLSTATE '45000'
+                SET MESSAGE_TEXT =
+                    'RB04: Xe qua han bao duong, khong the cap nhat chuyen!';
+END IF;
+END IF;
+END$$
+
 DELIMITER ;

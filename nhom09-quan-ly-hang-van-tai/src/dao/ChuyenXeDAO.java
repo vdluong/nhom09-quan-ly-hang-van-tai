@@ -46,7 +46,7 @@ public class ChuyenXeDAO {
     /**
      * Kiểm tra các ràng buộc RB01, RB02, RB04 trên tầng Java trước khi thêm/sửa chuyến xe.
      */
-    private boolean kiemTraRangBuocChuyenXe(ChuyenXe cx, boolean isInsert) {
+    private boolean kiemTraRangBuocChuyenXe(ChuyenXe cx) {
         // 1. Kiểm tra RB02: Lái xe chính và phụ xe không được trùng nhau
         if (cx.getMaLaiXe() != null && cx.getMaLaiXe().equals(cx.getMaPhuXe())) {
             JOptionPane.showMessageDialog(null,
@@ -74,7 +74,9 @@ public class ChuyenXeDAO {
         }
 
         // 3. Kiểm tra RB04 (Khi thêm chuyến mới): Cảnh báo / Chặn nếu xe đã quá hạn bảo dưỡng
-        if (isInsert && thongKeDAO.isXeQuaHanBaoDuong(cx.getBienSo())) {
+        if (thongKeDAO.isXeQuaHanBaoDuong(
+                cx.getBienSo(),
+                cx.getNgayKhoiHanh())) {
             int confirm = JOptionPane.showConfirmDialog(null,
                     "Vi phạm RB04: Xe " + cx.getBienSo() + " đã quá hạn bảo dưỡng định kỳ!\n"
                             + "Bạn có muốn xác nhận đã bảo dưỡng xe hôm nay trước khi xếp lịch chạy không?",
@@ -84,6 +86,15 @@ public class ChuyenXeDAO {
             if (confirm == JOptionPane.YES_OPTION) {
                 boolean daCapNhat = xeKhachDAO.xacNhanBaoDuong(cx.getBienSo());
                 if (!daCapNhat) {
+                    return false;
+                }
+                if (thongKeDAO.isXeQuaHanBaoDuong(
+                        cx.getBienSo(), cx.getNgayKhoiHanh())) {
+
+                    JOptionPane.showMessageDialog(null,
+                            "Xe vẫn quá hạn bảo dưỡng tại ngày khởi hành!",
+                            "Lỗi RB04",
+                            JOptionPane.ERROR_MESSAGE);
                     return false;
                 }
                 JOptionPane.showMessageDialog(null,
@@ -106,7 +117,7 @@ public class ChuyenXeDAO {
         }
 
         // Kiểm tra RB01, RB02, RB04
-        if (!kiemTraRangBuocChuyenXe(cx, true)) {
+        if (!kiemTraRangBuocChuyenXe(cx)) {
             return false;
         }
 
@@ -132,7 +143,7 @@ public class ChuyenXeDAO {
 
     public boolean update(ChuyenXe cx) {
         // Kiểm tra RB01, RB02
-        if (!kiemTraRangBuocChuyenXe(cx, false)) {
+        if (!kiemTraRangBuocChuyenXe(cx)) {
             return false;
         }
 

@@ -8,6 +8,7 @@ import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -34,12 +35,14 @@ public class ThongKeDAO {
                 + "    SELECT ma_chuyen, ma_lai_xe AS ma_tai_xe, 'LAI_CHINH' AS vai_tro "
                 + "    FROM CHUYEN_XE "
                 + "    WHERE MONTH(ngay_khoi_hanh) = ? AND YEAR(ngay_khoi_hanh) = ? "
-                + "      AND DATE(ngay_khoi_hanh) <= CURDATE() "
+                + "      AND ngay_khoi_hanh <= NOW() "
+                + "      AND trang_thai = 'Hoàn thành' "
                 + "    UNION ALL "
                 + "    SELECT ma_chuyen, ma_phu_xe AS ma_tai_xe, 'PHU_XE' AS vai_tro "
                 + "    FROM CHUYEN_XE "
                 + "    WHERE MONTH(ngay_khoi_hanh) = ? AND YEAR(ngay_khoi_hanh) = ? "
-                + "      AND DATE(ngay_khoi_hanh) <= CURDATE() "
+                + "      AND ngay_khoi_hanh <= NOW() "
+                + "      AND trang_thai = 'Hoàn thành' "
                 + ") vt ON vt.ma_tai_xe = tx.ma_tai_xe "
                 + "LEFT JOIN CHUYEN_XE cx ON cx.ma_chuyen = vt.ma_chuyen "
                 + "LEFT JOIN TUYEN_XE txe ON txe.ma_tuyen = cx.ma_tuyen "
@@ -83,6 +86,7 @@ public class ThongKeDAO {
                 + "LEFT JOIN CHUYEN_XE cx "
                 + "    ON cx.bien_so = xk.bien_so "
                 + "   AND DATE(cx.ngay_khoi_hanh) BETWEEN ? AND ? "
+                + "   AND cx.trang_thai = 'Hoàn thành' "
                 + "GROUP BY xk.bien_so, xk.hang_san_xuat, xk.model "
                 + "ORDER BY doanh_thu_vnd DESC, xk.bien_so";
 
@@ -126,6 +130,8 @@ public class ThongKeDAO {
                 + "    JOIN TUYEN_XE tx ON tx.ma_tuyen = cx.ma_tuyen "
                 + "    JOIN XE_KHACH xk ON xk.bien_so = cx.bien_so "
                 + "    WHERE DATE(cx.ngay_khoi_hanh) > xk.ngay_bao_duong_cuoi "
+                + "      AND cx.ngay_khoi_hanh <= NOW() "
+                + "      AND cx.trang_thai = 'Hoàn thành' "
                 + "    GROUP BY cx.bien_so "
                 + "), "
                 + "lich_bao_duong AS ( "
@@ -137,7 +143,7 @@ public class ThongKeDAO {
                 + "        COALESCE(FLOOR(k.tong_km / 100), 0) AS so_ngay_bi_giam, "
                 + "        DATE_ADD( "
                 + "            xk.ngay_bao_duong_cuoi, "
-                + "            INTERVAL (360 - COALESCE(FLOOR(k.tong_km / 100), 0)) DAY "
+                + "            INTERVAL GREATEST(0, 360 - COALESCE(FLOOR(k.tong_km / 100), 0)) DAY "
                 + "        ) AS ngay_bao_duong_tiep "
                 + "    FROM XE_KHACH xk "
                 + "    LEFT JOIN km_quy_doi k ON k.bien_so = xk.bien_so "
@@ -185,6 +191,8 @@ public class ThongKeDAO {
                 + "    JOIN TUYEN_XE tx ON tx.ma_tuyen = cx.ma_tuyen "
                 + "    JOIN XE_KHACH xk ON xk.bien_so = cx.bien_so "
                 + "    WHERE DATE(cx.ngay_khoi_hanh) > xk.ngay_bao_duong_cuoi "
+                + "      AND cx.ngay_khoi_hanh <= NOW() "
+                + "      AND cx.trang_thai = 'Hoàn thành' "
                 + "    GROUP BY cx.bien_so "
                 + "), "
                 + "lich_bao_duong AS ( "
@@ -195,7 +203,7 @@ public class ThongKeDAO {
                 + "        xk.ngay_bao_duong_cuoi, "
                 + "        DATE_ADD( "
                 + "            xk.ngay_bao_duong_cuoi, "
-                + "            INTERVAL (360 - COALESCE(FLOOR(k.tong_km / 100), 0)) DAY "
+                + "            INTERVAL GREATEST(0, 360 - COALESCE(FLOOR(k.tong_km / 100), 0)) DAY "
                 + "        ) AS ngay_bao_duong_tiep "
                 + "    FROM XE_KHACH xk "
                 + "    LEFT JOIN km_quy_doi k ON k.bien_so = xk.bien_so "
@@ -234,5 +242,45 @@ public class ThongKeDAO {
             }
         }
         return false;
+    }
+
+    public boolean isXeQuaHanBaoDuong(String bienSo, Timestamp ngayKhoiHanh) {
+        String sql =
+                "SELECT CASE WHEN " +
+                        "DATE(?) > DATE_ADD(xk.ngay_bao_duong_cuoi, " +
+                        "INTERVAL GREATEST(0, 360 - COALESCE((" +
+                        "SELECT FLOOR(SUM(tx.do_dai_km * " +
+                        "CASE tx.do_phuc_tap " +
+                        "WHEN 1 THEN 1.0 " +
+                        "WHEN 2 THEN 1.2 " +
+                        "WHEN 3 THEN 1.5 END) / 100) " +
+                        "FROM CHUYEN_XE cx " +
+                        "JOIN TUYEN_XE tx ON cx.ma_tuyen = tx.ma_tuyen " +
+                        "WHERE cx.bien_so = xk.bien_so " +
+                        "AND DATE(cx.ngay_khoi_hanh) > xk.ngay_bao_duong_cuoi " +
+                        "AND cx.ngay_khoi_hanh <= NOW() " +
+                        "AND cx.trang_thai = 'Hoàn thành' " +
+                        "), 0)) DAY) " +
+                        "THEN 1 ELSE 0 END AS qua_han " +
+                        "FROM XE_KHACH xk WHERE xk.bien_so = ?";
+
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setTimestamp(1, ngayKhoiHanh);
+            ps.setString(2, bienSo);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt("qua_han") == 1;
+                }
+            }
+        } catch (SQLException e) {
+            JOptionPane.showMessageDialog(null,
+                    "Lỗi kiểm tra bảo dưỡng: " + e.getMessage());
+            return true;
+        }
+
+        return true;
     }
 }

@@ -16,7 +16,7 @@ public final class Validator {
 
     // Kiểm tra số ghế hợp lệ
     public static boolean isValidSoGhe(int soGhe) {
-        return soGhe >= 3;
+        return soGhe >= 4;
     }
 
     // Kiểm tra năm sản xuất hợp lệ
